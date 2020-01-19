@@ -9,22 +9,17 @@ setuptools.setup(
     name="applicationmetrics",
     version="0.0.1",
 
-    description="A sample CDK Python app",
+    description="A sample CDK Python app that stores and retrieves user metrics for applications",
     long_description=long_description,
     long_description_content_type="text/markdown",
 
-    author="author",
+    author="Jordan Cannon",
 
     package_dir={"": "applicationmetrics"},
     packages=setuptools.find_packages(where="applicationmetrics"),
 
     install_requires=[
         "aws-cdk.core",
-        "aws-cdk.aws_iam",
-        "aws-cdk.aws_sqs",
-        "aws-cdk.aws_sns",
-        "aws-cdk.aws_sns_subscriptions",
-        "aws-cdk.aws_s3",
     ],
 
     python_requires=">=3.6",
