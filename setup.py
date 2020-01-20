@@ -20,6 +20,7 @@ setuptools.setup(
 
     install_requires=[
         "aws-cdk.core",
+        "aws_cdk.aws_dynamodb",
     ],
 
     python_requires=">=3.6",

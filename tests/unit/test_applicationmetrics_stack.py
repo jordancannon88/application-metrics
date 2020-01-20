@@ -11,4 +11,5 @@ def get_template():
     return json.dumps(app.synth().get_stack("applicationmetrics").template)
 
 
-# Code
+def test_dynamo_db_table_created():
+    assert("AWS::DynamoDB::Table" in get_template())
