@@ -1,9 +1,7 @@
 import setuptools
 
-
 with open("README.md") as fp:
     long_description = fp.read()
-
 
 setuptools.setup(
     name="applicationmetrics",
@@ -24,6 +22,7 @@ setuptools.setup(
         "aws_cdk.aws_dynamodb",
         "aws_cdk.aws_lambda",
         "aws_cdk.aws_iam",
+        "boto3",
     ],
 
     python_requires=">=3.6",
