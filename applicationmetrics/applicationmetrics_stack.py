@@ -1,6 +1,7 @@
 from aws_cdk import (
     core,
     aws_dynamodb,
+    aws_lambda,
 )
 
 
@@ -30,3 +31,18 @@ class ApplicationmetricsStack(core.Stack):
                                    # secondary indexes.
                                    billing_mode=aws_dynamodb.BillingMode.PAY_PER_REQUEST
                                    )
+        # [ CREATE ] Lambda:
+
+        function_post = aws_lambda.Function(self, 'post',
+                                            runtime=aws_lambda.Runtime.PYTHON_3_6,
+                                            handler='function_post.handler',
+                                            code=aws_lambda.Code.asset('./lambdas/applications')
+                                            )
+
+        # [ CREATE ] DynamoDB: Permission:
+
+        table.grant_read_data(function_post)
+
+        # [ CREATE ] Lambda: Environment:
+
+        function_post.add_environment('TABLE_NAME', table.table_name)

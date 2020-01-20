@@ -12,4 +12,12 @@ def get_template():
 
 
 def test_dynamo_db_table_created():
-    assert("AWS::DynamoDB::Table" in get_template())
+    assert ("AWS::DynamoDB::Table" in get_template())
+
+
+def test_lambda_function_created():
+    assert ("AWS::Lambda::Function" in get_template())
+
+
+def test_lambda_function_environment_for_dynamo_db_table_created():
+    assert ("TABLE_NAME" in get_template())
