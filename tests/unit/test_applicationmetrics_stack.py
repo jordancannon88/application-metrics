@@ -21,3 +21,11 @@ def test_lambda_function_created():
 
 def test_lambda_function_environment_for_dynamo_db_table_created():
     assert ("TABLE_NAME" in get_template())
+
+
+def test_api_gateway_rest_api_created():
+    assert ("AWS::ApiGateway::RestApi" in get_template())
+
+
+def test_api_gateway_request_validator_created():
+    assert ("AWS::ApiGateway::RequestValidator" in get_template())
