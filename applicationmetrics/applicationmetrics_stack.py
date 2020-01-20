@@ -96,6 +96,84 @@ class ApplicationmetricsStack(core.Stack):
 
         # [ CREATE ] API Gateway: Integration
 
+        # PUT:
+
+        api_integration_put = aws_apigateway.AwsIntegration(service='dynamodb',
+                                                            action='PutItem',
+                                                            options=aws_apigateway.IntegrationOptions(
+                                                                credentials_role=role,
+                                                                passthrough_behavior=aws_apigateway.PassthroughBehavior.NEVER,
+                                                                request_templates={
+                                                                    'application/json': json.dumps(
+                                                                        {
+                                                                            "TableName": table.table_name,
+                                                                            "Item": {
+                                                                                "application": {
+                                                                                    "S": "$util.escapeJavaScript($input.path('$').application)"
+                                                                                },
+                                                                                "operation": {
+                                                                                    "S": "$util.escapeJavaScript($input.path('$').operation)"
+                                                                                },
+                                                                                "current_media_time": {
+                                                                                    "S": "$input.path('$').currentMediaTime"
+                                                                                },
+                                                                                "source_ip": {
+                                                                                    "S": "$context.identity.sourceIp"
+                                                                                },
+                                                                                "user_agent": {
+                                                                                    "S": "$context.identity.userAgent"
+                                                                                },
+                                                                                "created_at": {
+                                                                                    "S": "$context.requestTime"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    )
+                                                                },
+                                                                integration_responses=[
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        # We will set the response status code to 200
+                                                                        status_code="200",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Success",
+                                                                                    "message": "Updated items.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern='.*400.*',
+                                                                        # We will set the response status code to 400
+                                                                        status_code="400",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    )
+                                                                ]
+                                                            )
+                                                            )
+
+        # POST:
+
         api_integration_post = aws_apigateway.LambdaIntegration(function_post,
                                                                 proxy=False,
                                                                 request_templates={
@@ -158,6 +236,37 @@ class ApplicationmetricsStack(core.Stack):
 
         # [ CREATE ] API Gateway: Model
 
+        api_model_request_put = api.add_model('PUTRequestModel',
+                                              content_type='application/json',
+                                              model_name='PUTRequestModel',
+                                              schema=aws_apigateway.JsonSchema(
+                                                  schema=aws_apigateway.JsonSchemaVersion.DRAFT4,
+                                                  title='PUTRequestModel',
+                                                  type=aws_apigateway.JsonSchemaType.OBJECT,
+                                                  # The parameters properties like type and character length.
+                                                  properties={
+                                                      'application': aws_apigateway.JsonSchema(
+                                                          type=aws_apigateway.JsonSchemaType.STRING,
+                                                          min_length=1
+                                                      ),
+                                                      'operation': aws_apigateway.JsonSchema(
+                                                          type=aws_apigateway.JsonSchemaType.STRING,
+                                                          min_length=1
+                                                      ),
+                                                      'currentMediaTime': aws_apigateway.JsonSchema(
+                                                          type=aws_apigateway.JsonSchemaType.NUMBER,
+                                                          min_length=1,
+                                                      ),
+                                                  },
+                                                  # The parameters that are required to be submitted
+                                                  required=[
+                                                      'application',
+                                                      'operation',
+                                                      'currentMediaTime',
+                                                  ]
+                                              )
+                                              )
+
         api_model_request_post = api.add_model('POSTRequestModel',
                                                content_type='application/json',
                                                model_name='POSTRequestModel',
@@ -186,6 +295,24 @@ class ApplicationmetricsStack(core.Stack):
                                                        'endDate',
                                                        'application',
                                                    ]
+                                               )
+                                               )
+
+        api_model_response_put = api.add_model('PUTResponseModel',
+                                               content_type='application/json',
+                                               model_name='PUTResponseModel',
+                                               schema=aws_apigateway.JsonSchema(
+                                                   schema=aws_apigateway.JsonSchemaVersion.DRAFT4,
+                                                   title='PUTResponseModel',
+                                                   type=aws_apigateway.JsonSchemaType.OBJECT,
+                                                   properties={
+                                                       'state': aws_apigateway.JsonSchema(
+                                                           type=aws_apigateway.JsonSchemaType.STRING
+                                                       ),
+                                                       'message': aws_apigateway.JsonSchema(
+                                                           type=aws_apigateway.JsonSchemaType.STRING
+                                                       ),
+                                                   }
                                                )
                                                )
 
@@ -222,9 +349,48 @@ class ApplicationmetricsStack(core.Stack):
                                                  )
                                                  )
 
-        # [ ADD ] API Gateway: Resource: Method
+        # [ ADD ] API Gateway: Resource: Method:
 
-        # POST
+        # PUT:
+
+        api_resource_students.add_method('PUT', api_integration_put,
+                                         request_validator=api_validator_request,
+                                         request_models={
+                                             'application/json': api_model_request_put
+                                         },
+                                         method_responses=[
+                                             aws_apigateway.MethodResponse(
+                                                 # Successful response from the integration
+                                                 status_code='200',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_put
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='400',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             )
+                                         ]
+                                         )
+
+        # POST:
 
         api_resource_students.add_method('POST', api_integration_post,
                                          request_validator=api_validator_request,
