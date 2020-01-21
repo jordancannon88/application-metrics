@@ -1,18 +1,37 @@
 from aws_cdk import (
     core,
     aws_apigateway,
+    aws_cloudwatch,
+    aws_cloudwatch_actions,
     aws_dynamodb,
-    aws_lambda,
     aws_iam,
+    aws_lambda,
+    aws_logs,
+    aws_sns,
+    aws_sns_subscriptions,
 )
 
 import json
+
+# Emails for receiving alerts.
+notification_emails = [
+    'jordancannon@gmail.com'
+]
 
 
 class ApplicationmetricsStack(core.Stack):
 
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
+
+        # TODO:: Remove all unnecessary comments when finished.
+        # TODO:: Add tags for resources.
+        # TODO:: Insert metadata of client "referrer" for request integration.
+        # TODO:: Check for empty $context strings in request integration.
+        # TODO:: Add better metrics to ApiGateway
+        # TODO:: Test for PUT or POST other application types (application/xml)
+        # TODO:: Add CORS
+        # TODO:: Go over failed executions and their retry attempts for api gateway and lambda.
 
         # [ CREATE ] DynamoDB:
         #
@@ -40,8 +59,154 @@ class ApplicationmetricsStack(core.Stack):
         function_post = aws_lambda.Function(self, 'post',
                                             runtime=aws_lambda.Runtime.PYTHON_3_6,
                                             handler='function_post.handler',
-                                            code=aws_lambda.Code.asset('./lambdas/applications')
+                                            code=aws_lambda.Code.asset('./lambdas/applications'),
+                                            tracing=aws_lambda.Tracing.ACTIVE
                                             )
+
+        # [ CREATE ] Log: LogGroup:
+        #
+        # - TODO:: FIX: https://github.com/aws/aws-cdk/issues/3838 (Soon to be fixed)
+
+        # Creates new Lambda Log Group.
+
+        # function_post_log_group = aws_logs.LogGroup(self, 'LogGroup',
+        #                                             log_group_name='/aws/lambda/' + function_post.function_name
+        #                                             )
+
+        # Finds existing Lambda Log Group.
+
+        function_post_log_group = aws_logs.LogGroup.from_log_group_name(self, 'LogGroup',
+                                                                        log_group_name='/aws/lambda/' + function_post.function_name
+                                                                        )
+
+        # [ CREATE ] Log: MetricFilter:
+
+        aws_logs.MetricFilter(self, 'LambdaLogErrorReport',
+                              filter_pattern=aws_logs.FilterPattern.all_terms('[ERROR]'),
+                              log_group=function_post_log_group,
+                              metric_namespace='Lambdas',
+                              metric_name='LambdaErrors',
+                              default_value=0,
+                              metric_value='1',
+                              )
+
+        aws_logs.MetricFilter(self, 'LambdaLogMemoryUsage',
+                              filter_pattern=aws_logs.FilterPattern.literal(
+                                  '[report="REPORT", request_id_name, request_id_value, duration_name, duration_value, duration_unit, duration_billed_name, duration_billed_name_2, duration_billed_value, duration_billed_unit, memory_max_name, memory_max_name_2, memory_max_value, memory_max_unit, memory_used_name, memory_used_name_2, memory_used_name_3, memory_used_value, memory_used_unit]'),
+                              log_group=function_post_log_group,
+                              metric_namespace='Lambdas',
+                              metric_name='LambdaMemory',
+                              default_value=0,
+                              metric_value="$memory_used_value",
+                              )
+
+        # TODO:: Provide better way of grabbing metric filters.
+
+        # [ CREATE ] Log: Alarm:
+
+        alarm_lambda_log_error = aws_cloudwatch.Alarm(self, 'LambdaLogError',
+                                                      metric=aws_cloudwatch.Metric(
+                                                          namespace='Lambdas',
+                                                          metric_name='LambdaErrors',
+                                                      ),
+                                                      alarm_description='Looks for logs reported as errors and reports if any is found.',
+                                                      threshold=0,
+                                                      evaluation_periods=1,
+                                                      comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                      period=core.Duration.seconds(60),
+                                                      actions_enabled=True,
+                                                      treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING
+                                                      )
+
+        alarm_lambda_log_memory = aws_cloudwatch.Alarm(self, 'LambdaLogMemory',
+                                                       metric=aws_cloudwatch.Metric(
+                                                           namespace='Lambdas',
+                                                           metric_name='LambdaMemory',
+                                                       ),
+                                                       alarm_description='Reads memory usage in MB reported in logs and reports if too high.',
+                                                       threshold=110,
+                                                       evaluation_periods=1,
+                                                       comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                       period=core.Duration.seconds(60),
+                                                       actions_enabled=True,
+                                                       treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+                                                       statistic='Maximum'
+                                                       )
+
+        alarm_lambda_duration = aws_cloudwatch.Alarm(self, 'LambdaDuration',
+                                                     metric=aws_cloudwatch.Metric(
+                                                         namespace='AWS/Lambda',
+                                                         metric_name='Duration',
+                                                     ),
+                                                     threshold=1000,
+                                                     period=core.Duration.seconds(60),
+                                                     evaluation_periods=1,
+                                                     comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+                                                     actions_enabled=True,
+                                                     treat_missing_data=aws_cloudwatch.TreatMissingData.IGNORE,
+                                                     statistic='Maximum'
+                                                     )
+
+        # TODO:: Uses aggregated data. Specify a Lambda function.
+
+        alarm_lambda_error = aws_cloudwatch.Alarm(self, 'LambdaError',
+                                                  metric=aws_cloudwatch.Metric(
+                                                      namespace='AWS/Lambda',
+                                                      metric_name='Error',
+                                                  ),
+                                                  threshold=0,
+                                                  period=core.Duration.seconds(60),
+                                                  evaluation_periods=1,
+                                                  comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                  actions_enabled=True,
+                                                  treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+                                                  statistic='Maximum'
+                                                  )
+
+        alarm_api_gateway_5XX_error = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
+                                                           metric=aws_cloudwatch.Metric(
+                                                               namespace='AWS/ApiGateway',
+                                                               metric_name='5XXError',
+                                                           ),
+                                                           threshold=0,
+                                                           period=core.Duration.seconds(60),
+                                                           evaluation_periods=1,
+                                                           comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                           actions_enabled=True,
+                                                           treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+                                                           )
+
+        # [ CREATE ] SNS: Topic:
+
+        topic = aws_sns.Topic(self, 'ErrorTopic')
+
+        # [ CREATE ] SNS: Subscription:
+
+        # TODO:: Create emails from list of var notification_emails
+
+        subscription = aws_sns_subscriptions.EmailSubscription(
+            email_address='jordancannon15@gmail.com'
+        )
+
+        # [ ADD ] SNS: Topic: Subscription:
+
+        topic.add_subscription(subscription)
+
+        # [ CREATE ] CloudWatch: Action:
+
+        action = aws_cloudwatch_actions.SnsAction(
+            topic=topic
+        )
+
+        # [ ADD ] Log: Alarm: Action:
+
+        alarm_lambda_log_error.add_alarm_action(action)
+
+        alarm_lambda_log_memory.add_alarm_action(action)
+
+        alarm_lambda_duration.add_alarm_action(action)
+
+        alarm_lambda_error.add_alarm_action(action)
 
         # [ CREATE ] DynamoDB: Permission:
 
