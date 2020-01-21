@@ -25,12 +25,22 @@ def handler(event, context):
 
     # Formatted dates to Common Log Format (dd/MMM/yyyy:HH:mm:ss +-hhmm)
     # https://httpd.apache.org/docs/1.3/logs.html#common
-    start_date = datetime.datetime.strptime(event['start_date'], '%Y-%m-%d').strftime("%d/%b/%Y:%H:%M:%S") + " +0000"
-    end_date = datetime.datetime.strptime(event['end_date'], '%Y-%m-%d').replace(hour=23, minute=59, second=59,
-                                                                                 microsecond=999999).strftime(
-        "%d/%b/%Y:%H:%M:%S") + " +0000"
+    try:
+        start_date = datetime.datetime.strptime(event['start_date'], '%Y-%m-%d').strftime(
+            "%d/%b/%Y:%H:%M:%S") + " +0000"
+        end_date = datetime.datetime.strptime(event['end_date'], '%Y-%m-%d').replace(hour=23, minute=59, second=59,
+                                                                                     microsecond=999999).strftime(
+            "%d/%b/%Y:%H:%M:%S") + " +0000"
 
-    logging.info('dates: {}'.format(json.dumps({'start': start_date, 'end': end_date})))
+        logging.info('dates: {}'.format(json.dumps({'start': start_date, 'end': end_date})))
+    except Exception as e:
+        # Format error message as json.
+        error_json = json.dumps({
+            'type': 'ValidationException',
+            'message': 'Your values are incorrect.'
+        })
+        logging.error(error_json)
+        raise Exception(error_json)
 
     # Check the start day is before the end date.
     if start_date > end_date:
