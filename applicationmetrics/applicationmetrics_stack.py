@@ -27,9 +27,6 @@ class ApplicationmetricsStack(core.Stack):
         # TODO:: Remove all unnecessary comments when finished.
         # TODO:: Add tags for resources.
         # TODO:: Insert metadata of client "referrer" for request integration.
-        # TODO:: Check for empty $context strings in request integration.
-        # TODO:: Add better metrics to ApiGateway
-        # TODO:: Test for PUT or POST other application types (application/xml)
         # TODO:: Add CORS
         # TODO:: Go over failed executions and their retry attempts for api gateway and lambda.
 
@@ -62,6 +59,14 @@ class ApplicationmetricsStack(core.Stack):
                                             code=aws_lambda.Code.asset('./lambdas/applications'),
                                             tracing=aws_lambda.Tracing.ACTIVE
                                             )
+
+        # [ CREATE ] DynamoDB: Permission:
+
+        table.grant_read_data(function_post)
+
+        # [ CREATE ] Lambda: Environment:
+
+        function_post.add_environment('TABLE_NAME', table.table_name)
 
         # [ CREATE ] Log: LogGroup:
         #
@@ -99,122 +104,6 @@ class ApplicationmetricsStack(core.Stack):
                               default_value=0,
                               metric_value="$memory_used_value",
                               )
-
-        # TODO:: Provide better way of grabbing metric filters.
-
-        # [ CREATE ] Log: Alarm:
-
-        alarm_lambda_log_error = aws_cloudwatch.Alarm(self, 'LambdaLogError',
-                                                      metric=aws_cloudwatch.Metric(
-                                                          namespace='Lambdas',
-                                                          metric_name='LambdaErrors',
-                                                      ),
-                                                      alarm_description='Looks for logs reported as errors and reports if any is found.',
-                                                      threshold=0,
-                                                      evaluation_periods=1,
-                                                      comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-                                                      period=core.Duration.seconds(60),
-                                                      actions_enabled=True,
-                                                      treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING
-                                                      )
-
-        alarm_lambda_log_memory = aws_cloudwatch.Alarm(self, 'LambdaLogMemory',
-                                                       metric=aws_cloudwatch.Metric(
-                                                           namespace='Lambdas',
-                                                           metric_name='LambdaMemory',
-                                                       ),
-                                                       alarm_description='Reads memory usage in MB reported in logs and reports if too high.',
-                                                       threshold=110,
-                                                       evaluation_periods=1,
-                                                       comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-                                                       period=core.Duration.seconds(60),
-                                                       actions_enabled=True,
-                                                       treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
-                                                       statistic='Maximum'
-                                                       )
-
-        alarm_lambda_duration = aws_cloudwatch.Alarm(self, 'LambdaDuration',
-                                                     metric=aws_cloudwatch.Metric(
-                                                         namespace='AWS/Lambda',
-                                                         metric_name='Duration',
-                                                     ),
-                                                     threshold=1000,
-                                                     period=core.Duration.seconds(60),
-                                                     evaluation_periods=1,
-                                                     comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-                                                     actions_enabled=True,
-                                                     treat_missing_data=aws_cloudwatch.TreatMissingData.IGNORE,
-                                                     statistic='Maximum'
-                                                     )
-
-        # TODO:: Uses aggregated data. Specify a Lambda function.
-
-        alarm_lambda_error = aws_cloudwatch.Alarm(self, 'LambdaError',
-                                                  metric=aws_cloudwatch.Metric(
-                                                      namespace='AWS/Lambda',
-                                                      metric_name='Error',
-                                                  ),
-                                                  threshold=0,
-                                                  period=core.Duration.seconds(60),
-                                                  evaluation_periods=1,
-                                                  comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-                                                  actions_enabled=True,
-                                                  treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
-                                                  statistic='Maximum'
-                                                  )
-
-        alarm_api_gateway_5XX_error = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
-                                                           metric=aws_cloudwatch.Metric(
-                                                               namespace='AWS/ApiGateway',
-                                                               metric_name='5XXError',
-                                                           ),
-                                                           threshold=0,
-                                                           period=core.Duration.seconds(60),
-                                                           evaluation_periods=1,
-                                                           comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-                                                           actions_enabled=True,
-                                                           treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
-                                                           )
-
-        # [ CREATE ] SNS: Topic:
-
-        topic = aws_sns.Topic(self, 'ErrorTopic')
-
-        # [ CREATE ] SNS: Subscription:
-
-        # TODO:: Create emails from list of var notification_emails
-
-        subscription = aws_sns_subscriptions.EmailSubscription(
-            email_address='jordancannon15@gmail.com'
-        )
-
-        # [ ADD ] SNS: Topic: Subscription:
-
-        topic.add_subscription(subscription)
-
-        # [ CREATE ] CloudWatch: Action:
-
-        action = aws_cloudwatch_actions.SnsAction(
-            topic=topic
-        )
-
-        # [ ADD ] Log: Alarm: Action:
-
-        alarm_lambda_log_error.add_alarm_action(action)
-
-        alarm_lambda_log_memory.add_alarm_action(action)
-
-        alarm_lambda_duration.add_alarm_action(action)
-
-        alarm_lambda_error.add_alarm_action(action)
-
-        # [ CREATE ] DynamoDB: Permission:
-
-        table.grant_read_data(function_post)
-
-        # [ CREATE ] Lambda: Environment:
-
-        function_post.add_environment('TABLE_NAME', table.table_name)
 
         # [ CREATE ] IAM: Role
         #
@@ -280,7 +169,7 @@ class ApplicationmetricsStack(core.Stack):
                                                                                     "S": "$util.escapeJavaScript($input.path('$').operation)"
                                                                                 },
                                                                                 "current_media_time": {
-                                                                                    "S": "$input.path('$').currentMediaTime"
+                                                                                    "N": "$input.path('$').currentMediaTime"
                                                                                 },
                                                                                 "source_ip": {
                                                                                     "S": "$context.identity.sourceIp"
@@ -332,7 +221,140 @@ class ApplicationmetricsStack(core.Stack):
                                                                             'method.response.header.Access-Control-Allow-Origin': "'*'",
                                                                             'method.response.header.Access-Control-Allow-Credentials': "'true'"
                                                                         }
-                                                                    )
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern='.*401.*',
+                                                                        # We will set the response status code to 401
+                                                                        status_code="401",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern=".*403.*",
+                                                                        # We will set the response status code to 403
+                                                                        status_code="403",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern=".*404.*",
+                                                                        # We will set the response status code to 404
+                                                                        status_code="404",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern=".*413.*",
+                                                                        # We will set the response status code to 413
+                                                                        status_code="413",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern=".*429.*",
+                                                                        # We will set the response status code to 429
+                                                                        status_code="429",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    aws_apigateway.IntegrationResponse(
+                                                                        selection_pattern="5\d{2}",
+                                                                        # We will set the response status code to 500
+                                                                        status_code="500",
+                                                                        response_templates={
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
+                                                                        },
+                                                                        response_parameters={
+                                                                            # We can map response parameters
+                                                                            'method.response.header.Content-Type': "'application/json'",
+                                                                            'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                            'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                        }
+                                                                    ),
+                                                                    # aws_apigateway.IntegrationResponse(
+                                                                    #     selection_pattern="(\n|.)+",
+                                                                    #     # We will set the response status code to 500
+                                                                    #     status_code="500",
+                                                                    #     response_templates={
+                                                                    #         'application/json': json.dumps(
+                                                                    #             {
+                                                                    #                 "state": "Fail",
+                                                                    #                 "message": "Error, please contact the admin.",
+                                                                    #             }
+                                                                    #         )
+                                                                    #     },
+                                                                    #     response_parameters={
+                                                                    #         # We can map response parameters
+                                                                    #         'method.response.header.Content-Type': "'application/json'",
+                                                                    #         'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                    #         'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                    #     }
+                                                                    # )
                                                                 ]
                                                             )
                                                             )
@@ -382,12 +404,31 @@ class ApplicationmetricsStack(core.Stack):
                                                                             'method.response.header.Access-Control-Allow-Credentials': "'true'"
                                                                         }
                                                                     ),
+                                                                    # aws_apigateway.IntegrationResponse(
+                                                                    #     selection_pattern=".*UnknownException.*",
+                                                                    #     # We will set the response status code to 500
+                                                                    #     status_code="500",
+                                                                    #     response_templates={
+                                                                    #         'application/json': """ {"state": "Fail","message": "$util.parseJson($input.path('$.errorMessage')).message"} """
+                                                                    #     },
+                                                                    #     response_parameters={
+                                                                    #         # We can map response parameters
+                                                                    #         'method.response.header.Content-Type': "'application/json'",
+                                                                    #         'method.response.header.Access-Control-Allow-Origin': "'*'",
+                                                                    #         'method.response.header.Access-Control-Allow-Credentials': "'true'"
+                                                                    #     }
+                                                                    # ),
                                                                     aws_apigateway.IntegrationResponse(
-                                                                        selection_pattern=".*UnknownException.*",
+                                                                        selection_pattern="(\n|.)+",
                                                                         # We will set the response status code to 500
                                                                         status_code="500",
                                                                         response_templates={
-                                                                            'application/json': """ {"state": "Fail","message": "$util.parseJson($input.path('$.errorMessage')).message"} """
+                                                                            'application/json': json.dumps(
+                                                                                {
+                                                                                    "state": "Fail",
+                                                                                    "message": "Error, please contact the admin.",
+                                                                                }
+                                                                            )
                                                                         },
                                                                         response_parameters={
                                                                             # We can map response parameters
@@ -551,6 +592,90 @@ class ApplicationmetricsStack(core.Stack):
                                                  response_models={
                                                      'application/json': api_model_response_error
                                                  }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='401',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='403',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='404',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='413',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='429',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
+                                             ),
+                                             aws_apigateway.MethodResponse(
+                                                 # Failed response from the integration
+                                                 status_code='500',
+                                                 # Define what parameters are allowed or not
+                                                 response_parameters={
+                                                     'method.response.header.Content-Type': True,
+                                                     'method.response.header.Access-Control-Allow-Origin': True,
+                                                     'method.response.header.Access-Control-Allow-Credentials': True
+                                                 },
+                                                 # Validate the schema on the response
+                                                 response_models={
+                                                     'application/json': api_model_response_error
+                                                 }
                                              )
                                          ]
                                          )
@@ -607,3 +732,119 @@ class ApplicationmetricsStack(core.Stack):
                                              )
                                          ]
                                          )
+
+        # [ CREATE ] Log: Alarm:
+
+        alarm_lambda_log_error = aws_cloudwatch.Alarm(self, 'LambdaLogError',
+                                                      metric=aws_cloudwatch.Metric(
+                                                          namespace='Lambdas',
+                                                          metric_name='LambdaErrors',
+                                                      ),
+                                                      alarm_description='Looks for logs reported as errors and reports if any is found.',
+                                                      threshold=0,
+                                                      evaluation_periods=1,
+                                                      comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                      period=core.Duration.seconds(60),
+                                                      actions_enabled=True,
+                                                      treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING
+                                                      )
+
+        alarm_lambda_log_memory = aws_cloudwatch.Alarm(self, 'LambdaLogMemory',
+                                                       metric=aws_cloudwatch.Metric(
+                                                           namespace='Lambdas',
+                                                           metric_name='LambdaMemory',
+                                                       ),
+                                                       alarm_description='Reads memory usage in MB reported in logs and reports if too high.',
+                                                       threshold=110,
+                                                       evaluation_periods=1,
+                                                       comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                       period=core.Duration.seconds(60),
+                                                       actions_enabled=True,
+                                                       treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+                                                       statistic='Maximum'
+                                                       )
+
+        alarm_lambda_duration = aws_cloudwatch.Alarm(self, 'LambdaDuration',
+                                                     metric=function_post.metric_all_duration(),
+                                                     alarm_description='Uses AWS metrics to graph duration for the Lambda function.',
+                                                     threshold=1000,
+                                                     period=core.Duration.seconds(60),
+                                                     evaluation_periods=1,
+                                                     comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+                                                     actions_enabled=True,
+                                                     treat_missing_data=aws_cloudwatch.TreatMissingData.IGNORE,
+                                                     statistic='Maximum'
+                                                     )
+
+        alarm_lambda_error = aws_cloudwatch.Alarm(self, 'LambdaError',
+                                                  metric=function_post.metric_errors(),
+                                                  alarm_description='Uses AWS metrics to count errors for the Lambda function.',
+                                                  threshold=0,
+                                                  period=core.Duration.seconds(60),
+                                                  evaluation_periods=1,
+                                                  comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                                                  actions_enabled=True,
+                                                  treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+                                                  statistic='Maximum'
+                                                  )
+
+        # alarm_api_gateway_4XX_error = aws_cloudwatch.Alarm(self, 'ApiGateway4XXError',
+        #                                                    # metric=aws_cloudwatch.Metric(
+        #                                                    #     namespace='AWS/ApiGateway',
+        #                                                    #     metric_name='4XXError',
+        #                                                    # ),
+        #                                                    metric=
+        #                                                    threshold=0,
+        #                                                    period=core.Duration.seconds(60),
+        #                                                    evaluation_periods=1,
+        #                                                    comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        #                                                    actions_enabled=True,
+        #                                                    treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+        #                                                    )
+
+        # alarm_api_gateway_5XX_error = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
+        #                                                    metric=aws_cloudwatch.Metric(
+        #                                                        namespace='AWS/ApiGateway',
+        #                                                        metric_name='5XXError',
+        #                                                    ),
+        #                                                    threshold=0,
+        #                                                    period=core.Duration.seconds(60),
+        #                                                    evaluation_periods=1,
+        #                                                    comparison_operator=aws_cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        #                                                    actions_enabled=True,
+        #                                                    treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
+        #                                                    )
+
+        # [ CREATE ] SNS: Topic:
+
+        topic = aws_sns.Topic(self, 'ErrorTopic')
+
+        # [ CREATE ] SNS: Subscription:
+
+        # TODO:: Create emails from list of var notification_emails
+
+        subscription = aws_sns_subscriptions.EmailSubscription(
+            email_address='jordancannon15@gmail.com'
+        )
+
+        # [ ADD ] SNS: Topic: Subscription:
+
+        topic.add_subscription(subscription)
+
+        # [ CREATE ] CloudWatch: Action:
+
+        action = aws_cloudwatch_actions.SnsAction(
+            topic=topic
+        )
+
+        # [ ADD ] Log: Alarm: Action:
+
+        alarm_lambda_log_error.add_alarm_action(action)
+
+        alarm_lambda_log_memory.add_alarm_action(action)
+
+        alarm_lambda_duration.add_alarm_action(action)
+
+        alarm_lambda_error.add_alarm_action(action)
+
+        # alarm_api_gateway_5XX_error.add_alarm_action(action)
