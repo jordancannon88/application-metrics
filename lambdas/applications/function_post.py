@@ -39,7 +39,7 @@ def handler(event, context):
             'type': 'ValidationException',
             'message': 'Your values are incorrect.'
         })
-        logging.error(error_json)
+        logging.warning(error_json)
         raise Exception(error_json)
 
     # Check the start day is before the end date.
