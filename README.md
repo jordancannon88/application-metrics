@@ -1,5 +1,24 @@
+# cdk-api-gateway-lambda-dynamo
 
-# Welcome to your CDK Python project!
+An AWS CDK construct which exposes two public HTTP endpoints. The first endpoint for writing data 
+directly to a DynamoDB table with a service integration. The second for reading data from the 
+table with a Lambda integration.
+
+X-Ray and CloudWatch metrics are used to monitor the resources with alarms attached to the metrics in conjunction
+with SNS to send alerts by email. Dashboards for monitoring details.
+
+### Services
+
+| Name  | Description |
+| ------------- | ------------- |
+| API Gateway  | Handling requests and responses  |
+| Lambda | Reading storage and converting output  |
+| DynamoDB | Storage |
+| CloudWatch | Health monitoring & Logs |
+| SNS | Alerting for issues |
+| X-Ray | Health monitoring |
+
+# Usage(Python)
 
 You should explore the contents of this project. It demonstrates a CDK app with an instance of a stack (`applicationmetrics_stack`)
 which contains an Amazon SQS queue that is subscribed to an Amazon SNS topic.
