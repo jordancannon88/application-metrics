@@ -707,7 +707,7 @@ class ApplicationmetricsStack(core.Stack):
 
         # TODO:: Replace dimensions.name with dynamic var.
 
-        api_gateway_metric_error_4xx = aws_cloudwatch.Metric(
+        metric_api_gateway_error_4xx = aws_cloudwatch.Metric(
             namespace='AWS/ApiGateway',
             metric_name='4XXError',
             dimensions={
@@ -715,7 +715,7 @@ class ApplicationmetricsStack(core.Stack):
             }
         )
 
-        api_gateway_metric_error_5xx = aws_cloudwatch.Metric(
+        metric_api_gateway_error_5xx = aws_cloudwatch.Metric(
             namespace='AWS/ApiGateway',
             metric_name='5XXError',
             dimensions={
@@ -783,7 +783,7 @@ class ApplicationmetricsStack(core.Stack):
                                                   )
 
         alarm_api_gateway_error_4xx = aws_cloudwatch.Alarm(self, 'ApiGateway4XXError',
-                                                           metric=api_gateway_metric_error_4xx,
+                                                           metric=metric_api_gateway_error_4xx,
                                                            threshold=0,
                                                            period=core.Duration.seconds(60),
                                                            evaluation_periods=1,
@@ -793,7 +793,7 @@ class ApplicationmetricsStack(core.Stack):
                                                            )
 
         alarm_api_gateway_error_5xx = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
-                                                           metric=api_gateway_metric_error_5xx,
+                                                           metric=metric_api_gateway_error_5xx,
                                                            threshold=0,
                                                            period=core.Duration.seconds(60),
                                                            evaluation_periods=1,
@@ -815,10 +815,10 @@ class ApplicationmetricsStack(core.Stack):
                 title="HTTP Errors",
                 width=24,
                 left=[
-                    api_gateway_metric_error_4xx.with_(
+                    metric_api_gateway_error_4xx.with_(
                         color="#ff8000",
                     ),
-                    api_gateway_metric_error_5xx.with_(
+                    metric_api_gateway_error_5xx.with_(
                         color="#ff4d4d",
                     ),
                 ]
@@ -873,7 +873,6 @@ class ApplicationmetricsStack(core.Stack):
                     function_post.metric_errors().with_(
                         label="Errors",
                         color="#ff4d4d",
-                        # statistic="Maximum"
                     ),
                 ],
             ),
@@ -884,7 +883,6 @@ class ApplicationmetricsStack(core.Stack):
                     metric_lambda_error_log.with_(
                         label="Errors",
                         color="#ff4d4d",
-                        # statistic="Maximum"
                     ),
                 ],
             ),
