@@ -15,7 +15,8 @@ import json
 
 # Emails for receiving alerts.
 notification_emails = [
-    'jordancannon@gmail.com'
+    'XXX@gmail.com',
+    'XXX@yahoo.com'
 ]
 
 
@@ -1020,19 +1021,16 @@ class ApplicationmetricsStack(core.Stack):
 
         # [ CREATE ] SNS: Topic:
 
-        topic = aws_sns.Topic(self, 'ErrorTopic')
+        topic = aws_sns.Topic(self, 'Errors')
 
         # [ CREATE ] SNS: Subscription:
 
-        # TODO:: Create emails from list of var notification_emails
-
-        subscription = aws_sns_subscriptions.EmailSubscription(
-            email_address='jordancannon15@gmail.com'
-        )
-
-        # [ ADD ] SNS: Topic: Subscription:
-
-        topic.add_subscription(subscription)
+        for email in notification_emails:
+            topic.add_subscription(
+                aws_sns_subscriptions.EmailSubscription(
+                    email_address=email
+                )
+            )
 
         # [ CREATE ] CloudWatch: Action:
 
