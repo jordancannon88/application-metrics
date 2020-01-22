@@ -27,7 +27,6 @@ class ApplicationmetricsStack(core.Stack):
         # TODO:: Remove all unnecessary comments when finished.
         # TODO:: Add tags for resources.
         # TODO:: Insert metadata of client "referrer" for request integration.
-        # TODO:: Add CORS
         # TODO:: Go over failed executions and their retry attempts for api gateway and lambda.
 
         # [ CREATE ] DynamoDB:
@@ -127,6 +126,9 @@ class ApplicationmetricsStack(core.Stack):
         # [ CREATE ] API Gateway:
 
         api = aws_apigateway.RestApi(self, 'api_application_metrics',
+                                     default_cors_preflight_options=aws_apigateway.CorsOptions(
+                                         allow_origins=['*'],
+                                     ),
                                      deploy_options=aws_apigateway.StageOptions(
                                          logging_level=aws_apigateway.MethodLoggingLevel.INFO,
                                          # Log full requests/responses data
