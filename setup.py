@@ -18,13 +18,6 @@ setuptools.setup(
 
     install_requires=[
         "aws-cdk.core",
-        "aws_cdk.aws_apigateway",
-        "aws_cdk.aws_cloudwatch_actions",
-        "aws_cdk.aws_dynamodb",
-        "aws_cdk.aws_lambda",
-        "aws_cdk.aws_iam",
-        "aws_cdk.aws_sns_subscriptions",
-        "boto3",
     ],
 
     python_requires=">=3.6",
