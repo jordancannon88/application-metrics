@@ -30,7 +30,7 @@ class ApplicationmetricsStack(core.Stack):
         # TODO:: Insert metadata of client "referrer" for request integration.
         # TODO:: Add CloudWatch logs to s3 to glacier policy
 
-        # [ CREATE ] DynamoDB:
+        # [ DynamoDB ]
         #
         # - 100% integration with the AWS API allows other AWS resources to directly access the database. Less
         #   resources are involved meaning easier maintenance.
@@ -51,7 +51,9 @@ class ApplicationmetricsStack(core.Stack):
                                    # secondary indexes.
                                    billing_mode=aws_dynamodb.BillingMode.PAY_PER_REQUEST
                                    )
-        # [ CREATE ] Lambda:
+        # [ Lambda ]
+        #
+        # - Our single function to handle retrieving and manipulating data.
 
         function_post = aws_lambda.Function(self, 'post',
                                             runtime=aws_lambda.Runtime.PYTHON_3_6,
@@ -60,17 +62,25 @@ class ApplicationmetricsStack(core.Stack):
                                             tracing=aws_lambda.Tracing.ACTIVE
                                             )
 
-        # [ CREATE ] DynamoDB: Permission:
+        # [ DynamoDB ] Permission:
+        #
+        # - Allows the Lambda function read permissions.
 
         table.grant_read_data(function_post)
 
-        # [ CREATE ] Lambda: Environment:
+        # [ Lambda ] Environment:
+        #
+        #   - Adds the DynamoDB table name to the Lambda function environment for later access.
 
         function_post.add_environment('TABLE_NAME', table.table_name)
 
-        # [ CREATE ] Log: LogGroup:
+        # [ Log ] LogGroup:
         #
         # - TODO:: FIX: https://github.com/aws/aws-cdk/issues/3838 (Soon to be fixed)
+        #
+        # - Currently you cannot look up a log group and verify if it exists already. For a first time
+        #   launch you need to create the log group. For any launch after you grab the already created
+        #   log group by name.
 
         # Creates new Lambda Log Group.
 
@@ -84,7 +94,9 @@ class ApplicationmetricsStack(core.Stack):
                                                                         log_group_name='/aws/lambda/' + function_post.function_name
                                                                         )
 
-        # [ CREATE ] Log: MetricFilter:
+        # [ Log ] MetricFilter:
+        #
+        # - Defining custom metrics for consumption.
 
         aws_logs.MetricFilter(self, 'LambdaLogErrorReport',
                               filter_pattern=aws_logs.FilterPattern.all_terms('[ERROR]'),
@@ -105,7 +117,7 @@ class ApplicationmetricsStack(core.Stack):
                               metric_value="$memory_used_value",
                               )
 
-        # [ CREATE ] IAM: Role
+        # [ IAM ] Role
         #
         # - Allows API Gateway to assume this Role with the policies that allow access to DynamoDB.
 
@@ -113,7 +125,9 @@ class ApplicationmetricsStack(core.Stack):
                             assumed_by=aws_iam.ServicePrincipal('apigateway.amazonaws.com')
                             )
 
-        # [ ADD ] IAM: Role: Policy
+        # [ IAM ] Role: Policy
+        #
+        # - Create and attach a policy to a role.
 
         role.add_to_policy(aws_iam.PolicyStatement(
             resources=[
@@ -124,7 +138,9 @@ class ApplicationmetricsStack(core.Stack):
             ]
         ))
 
-        # [ CREATE ] API Gateway:
+        # [ API Gateway ]
+        #
+        # - The point of entry for our API.
 
         api = aws_apigateway.RestApi(self, 'api_application_metrics',
                                      default_cors_preflight_options=aws_apigateway.CorsOptions(
@@ -141,25 +157,36 @@ class ApplicationmetricsStack(core.Stack):
                                      )
                                      )
 
-        # [ ADD ] API Gateway: Resource
+        # [ API Gateway ] Resource
+        #
+        # - Add the endpoint /applications
 
         api_resource_applications = api.root.add_resource('applications')
 
-        # [ ADD ] API Gateway: Validator
+        # [ API Gateway ] Validator
+        #
+        # - We will only check the body on requests.
 
         api_validator_request = api.add_request_validator('DefaultValidator',
                                                           validate_request_body=True
                                                           )
 
-        # [ CREATE ] API Gateway: Integration
-
-        # PUT:
+        # [ API Gateway ] Integration: PUT
+        #
+        # - The AWS Integrations including both request and response.
+        #
+        # - Takes the request and transforms it to a PutItem format. Connecting directly to DynamoDB it
+        #   performs the PutItem operation on the table.
+        #
+        # - It receives responses directly from the DynamoDB. Looks in the header for HTTP status codes
+        #   and transforms the responses for clients.
 
         api_integration_put = aws_apigateway.AwsIntegration(service='dynamodb',
                                                             action='PutItem',
                                                             options=aws_apigateway.IntegrationOptions(
                                                                 credentials_role=role,
                                                                 passthrough_behavior=aws_apigateway.PassthroughBehavior.NEVER,
+                                                                # Our PutItem template for inserting into DynamoDB table.
                                                                 request_templates={
                                                                     'application/json': json.dumps(
                                                                         {
@@ -207,6 +234,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern='.*400.*',
                                                                         # We will set the response status code to 400
                                                                         status_code="400",
@@ -226,6 +255,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern='.*401.*',
                                                                         # We will set the response status code to 401
                                                                         status_code="401",
@@ -245,6 +276,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern=".*403.*",
                                                                         # We will set the response status code to 403
                                                                         status_code="403",
@@ -264,6 +297,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern=".*404.*",
                                                                         # We will set the response status code to 404
                                                                         status_code="404",
@@ -283,6 +318,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern=".*413.*",
                                                                         # We will set the response status code to 413
                                                                         status_code="413",
@@ -302,6 +339,8 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
                                                                         selection_pattern=".*429.*",
                                                                         # We will set the response status code to 429
                                                                         status_code="429",
@@ -321,6 +360,9 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
+                                                                        # Catch errors ranging from 500 - 599.
                                                                         selection_pattern="5\d{2}",
                                                                         # We will set the response status code to 500
                                                                         status_code="500",
@@ -343,7 +385,14 @@ class ApplicationmetricsStack(core.Stack):
                                                             )
                                                             )
 
-        # POST:
+        # [ API Gateway ] Integration: POST
+        #
+        # - The Lambda Integrations including both request and response.
+        #
+        # - Takes the request and transforms it by renaming the keys to snake case.
+        #
+        # - It receives responses from the Lambda where a check on the message body
+        #   is performed and then transformed for the client.
 
         api_integration_post = aws_apigateway.LambdaIntegration(function_post,
                                                                 proxy=False,
@@ -389,6 +438,9 @@ class ApplicationmetricsStack(core.Stack):
                                                                         }
                                                                     ),
                                                                     aws_apigateway.IntegrationResponse(
+                                                                        # Java pattern style regex only.
+                                                                        # https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
+                                                                        # Catch all other errors.
                                                                         selection_pattern="(\n|.)+",
                                                                         # We will set the response status code to 500
                                                                         status_code="500",
@@ -410,7 +462,9 @@ class ApplicationmetricsStack(core.Stack):
                                                                 ]
                                                                 )
 
-        # [ CREATE ] API Gateway: Model
+        # [ API Gateway ] Model
+        #
+        # - Define a template to be used for PUT request.
 
         api_model_request_put = api.add_model('PUTRequestModel',
                                               content_type='application/json',
@@ -443,6 +497,10 @@ class ApplicationmetricsStack(core.Stack):
                                               )
                                               )
 
+        # [ API Gateway ] Model
+        #
+        # - Define a template to be used for POST request.
+
         api_model_request_post = api.add_model('POSTRequestModel',
                                                content_type='application/json',
                                                model_name='POSTRequestModel',
@@ -474,6 +532,10 @@ class ApplicationmetricsStack(core.Stack):
                                                )
                                                )
 
+        # [ API Gateway ] Model
+        #
+        # - Define a template to be used for PUT response.
+
         api_model_response_put = api.add_model('PUTResponseModel',
                                                content_type='application/json',
                                                model_name='PUTResponseModel',
@@ -492,6 +554,10 @@ class ApplicationmetricsStack(core.Stack):
                                                )
                                                )
 
+        # [ API Gateway ] Model
+        #
+        # - Define a template to be used for POST response.
+
         api_model_response_post = api.add_model('POSTResponseModel',
                                                 content_type='application/json',
                                                 model_name='POSTResponseModel',
@@ -506,6 +572,10 @@ class ApplicationmetricsStack(core.Stack):
                                                     }
                                                 )
                                                 )
+
+        # [ API Gateway ] Model
+        #
+        # - Define a template to be used for error response.
 
         api_model_response_error = api.add_model('ErrorResponseModel',
                                                  content_type='application/json',
@@ -525,11 +595,12 @@ class ApplicationmetricsStack(core.Stack):
                                                  )
                                                  )
 
-        # [ ADD ] API Gateway: Resource: Method:
-
-        # PUT:
+        # [ API Gateway ] Resource: Method: PUT
+        #
+        # - Validates requests using a model.
 
         api_resource_applications.add_method('PUT', api_integration_put,
+                                             # Only validates the body using the validator.
                                              request_validator=api_validator_request,
                                              request_models={
                                                  'application/json': api_model_request_put
@@ -650,9 +721,12 @@ class ApplicationmetricsStack(core.Stack):
                                              ]
                                              )
 
-        # POST:
+        # [ API Gateway ] Resource: Method: POST
+        #
+        # - Validates requests using a model.
 
         api_resource_applications.add_method('POST', api_integration_post,
+                                             # Only validates the body using the validator.
                                              request_validator=api_validator_request,
                                              request_models={
                                                  'application/json': api_model_request_post
@@ -703,7 +777,9 @@ class ApplicationmetricsStack(core.Stack):
                                              ]
                                              )
 
-        # [ CREATE ] CloudWatch: Metric:
+        # [ CloudWatch ] Metric:
+        #
+        # - Retrieves the AWS metric for Api Gateway 400 errors.
 
         # TODO:: Replace dimensions.name with dynamic var.
 
@@ -715,6 +791,10 @@ class ApplicationmetricsStack(core.Stack):
             }
         )
 
+        # [ CloudWatch ] Metric:
+        #
+        # - Retrieves the AWS metric for Api Gateway 500 errors.
+
         metric_api_gateway_error_5xx = aws_cloudwatch.Metric(
             namespace='AWS/ApiGateway',
             metric_name='5XXError',
@@ -723,17 +803,27 @@ class ApplicationmetricsStack(core.Stack):
             }
         )
 
+        # [ CloudWatch ] Metric:
+        #
+        # - Retrieves the metric filter for Lambda function errors.
+
         metric_lambda_error_log = aws_cloudwatch.Metric(
             namespace='Lambdas',
             metric_name='LambdaErrors',
         )
+
+        # [ CloudWatch ] Metric:
+        #
+        # - Retrieves the metric filter for Lambda function memory.
 
         metric_lambda_memory = aws_cloudwatch.Metric(
             namespace='Lambdas',
             metric_name='LambdaMemory',
         )
 
-        # [ CREATE ] CloudWatch: Alarm:
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for errors reported by Lambda in logs.
 
         alarm_lambda_log_error = aws_cloudwatch.Alarm(self, 'LambdaLogError',
                                                       metric=metric_lambda_error_log,
@@ -745,6 +835,10 @@ class ApplicationmetricsStack(core.Stack):
                                                       actions_enabled=True,
                                                       treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING
                                                       )
+
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for reading Lambda memory usage in logs.
 
         alarm_lambda_log_memory = aws_cloudwatch.Alarm(self, 'LambdaLogMemory',
                                                        metric=metric_lambda_memory,
@@ -758,6 +852,10 @@ class ApplicationmetricsStack(core.Stack):
                                                        statistic='Maximum'
                                                        )
 
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for Lambda duration.
+
         alarm_lambda_duration = aws_cloudwatch.Alarm(self, 'LambdaDuration',
                                                      metric=function_post.metric_duration(),
                                                      alarm_description='Uses AWS metrics to graph duration for the Lambda function.',
@@ -769,6 +867,10 @@ class ApplicationmetricsStack(core.Stack):
                                                      treat_missing_data=aws_cloudwatch.TreatMissingData.IGNORE,
                                                      statistic='Maximum'
                                                      )
+
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for Lambda errors.
 
         alarm_lambda_error = aws_cloudwatch.Alarm(self, 'LambdaError',
                                                   metric=function_post.metric_errors(),
@@ -782,6 +884,10 @@ class ApplicationmetricsStack(core.Stack):
                                                   statistic='Maximum'
                                                   )
 
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for Api Gateway 400 errors.
+
         alarm_api_gateway_error_4xx = aws_cloudwatch.Alarm(self, 'ApiGateway4XXError',
                                                            metric=metric_api_gateway_error_4xx,
                                                            threshold=0,
@@ -791,6 +897,10 @@ class ApplicationmetricsStack(core.Stack):
                                                            actions_enabled=True,
                                                            treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
                                                            )
+
+        # [ CloudWatch ] Alarm:
+        #
+        # - Creates an alarm for Api Gateway 500 errors.
 
         alarm_api_gateway_error_5xx = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
                                                            metric=metric_api_gateway_error_5xx,
@@ -802,13 +912,15 @@ class ApplicationmetricsStack(core.Stack):
                                                            treat_missing_data=aws_cloudwatch.TreatMissingData.NOT_BREACHING,
                                                            )
 
-        # [ CREATE ] CloudWatch: Dashboard:
+        # [ CloudWatch ] Dashboard: Api Gateway
+        #
+        # - An ApiGateway Dashboard containing all related metrics.
 
         dashboard_api = aws_cloudwatch.Dashboard(self, "ApiGateway")
 
-        dashboard_lambda = aws_cloudwatch.Dashboard(self, "LambdaPOST")
-
-        # [ ADD ] CloudWatch: Dashboard: Widgets
+        # [ CloudWatch ] Dashboard: Widgets
+        #
+        # - Graphs for measuring Api Gateway 400 and 500 errors.
 
         dashboard_api.add_widgets(
             aws_cloudwatch.GraphWidget(
@@ -825,6 +937,10 @@ class ApplicationmetricsStack(core.Stack):
             ),
         )
 
+        # [ CloudWatch ] Dashboard: Widgets
+        #
+        # - Graphs for measuring when Api Gateway alarms have been triggered.
+
         dashboard_api.add_widgets(
             aws_cloudwatch.AlarmWidget(
                 title='4xxErrorAlarms',
@@ -837,6 +953,16 @@ class ApplicationmetricsStack(core.Stack):
                 width=12,
             ),
         )
+
+        # [ CloudWatch ] Dashboard: Lambda
+        #
+        # - A Lambda Dashboard containing all related metrics.
+
+        dashboard_lambda = aws_cloudwatch.Dashboard(self, "LambdaPOST")
+
+        # [ CloudWatch ] Dashboard: Widgets
+        #
+        # - Values for displaying general Lambda information.
 
         dashboard_lambda.add_widgets(
             aws_cloudwatch.SingleValueWidget(
@@ -864,6 +990,10 @@ class ApplicationmetricsStack(core.Stack):
                 ]
             ),
         )
+
+        # [ CloudWatch ] Dashboard: Widgets
+        #
+        # - Graphs for measuring Lambda errors, log errors, duration, and memory.
 
         dashboard_lambda.add_widgets(
             aws_cloudwatch.GraphWidget(
@@ -930,6 +1060,10 @@ class ApplicationmetricsStack(core.Stack):
             ),
         )
 
+        # [ CloudWatch ] Dashboard: Widgets
+        #
+        # - Graphs for measuring when alarms have been triggered.
+
         dashboard_lambda.add_widgets(
             aws_cloudwatch.AlarmWidget(
                 title='ErrorAlarms',
@@ -953,31 +1087,51 @@ class ApplicationmetricsStack(core.Stack):
             ),
         )
 
-        # [ CREATE ] SNS: Topic:
+        # [ SNS ] Topic:
+        #
+        # - The error topic for all issues.
 
-        topic = aws_sns.Topic(self, 'Errors')
+        topic_errors = aws_sns.Topic(self, 'Errors')
 
-        # [ CREATE ] SNS: Subscription:
+        # [ SNS ] Subscription:
+        #
+        # - Takes all emails in the list and creates email subscriptions for each.
 
         for email in notification_emails:
-            topic.add_subscription(
+            topic_errors.add_subscription(
                 aws_sns_subscriptions.EmailSubscription(
                     email_address=email
                 )
             )
 
-        # [ CREATE ] CloudWatch: Action:
+        # [ CloudWatch ] Action:
+        #
+        # -  Creates an action for the Lambda log error alarm and attaches the SMS error topic.
 
-        action = aws_cloudwatch_actions.SnsAction(
-            topic=topic
-        )
+        alarm_lambda_log_error.add_alarm_action(aws_cloudwatch_actions.SnsAction(
+            topic=topic_errors
+        ))
 
-        # [ ADD ] Log: Alarm: Action:
+        # [ CloudWatch ] Action:
+        #
+        # - Creates an action for the Lambda log memory alarm and attaches the SMS error topic.
 
-        alarm_lambda_log_error.add_alarm_action(action)
+        alarm_lambda_log_memory.add_alarm_action(aws_cloudwatch_actions.SnsAction(
+            topic=topic_errors
+        ))
 
-        alarm_lambda_log_memory.add_alarm_action(action)
+        # [ CloudWatch ] Action:
+        #
+        # - Creates an action for the Lambda duration alarm and attaches the SMS error topic.
 
-        alarm_lambda_duration.add_alarm_action(action)
+        alarm_lambda_duration.add_alarm_action(aws_cloudwatch_actions.SnsAction(
+            topic=topic_errors
+        ))
 
-        alarm_api_gateway_error_5xx.add_alarm_action(action)
+        # [ CloudWatch ] Action:
+        #
+        # - Creates an action for the Api Gateway 500 errors alarm and attaches the SMS error topic.
+
+        alarm_api_gateway_error_5xx.add_alarm_action(aws_cloudwatch_actions.SnsAction(
+            topic=topic_errors
+        ))
