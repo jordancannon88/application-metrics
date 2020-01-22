@@ -1,8 +1,8 @@
 import boto3
 import os
-import json
 import datetime
 import logging
+import json
 from boto3.dynamodb.conditions import Key
 
 # Get the service resource.
@@ -68,7 +68,9 @@ def handler(event, context):
         logging.error(error_json)
         raise Exception(error_json)
 
-    logging.info('data: {}'.format(json.dumps(data)))
+    # TODO:: Fix json.dumps for decimals.
+
+    logging.info('data: {}'.format(data))
 
     # The dict for holding our dates and counts.
     response = {}
