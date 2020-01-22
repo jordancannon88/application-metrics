@@ -339,25 +339,6 @@ class ApplicationmetricsStack(core.Stack):
                                                                             'method.response.header.Access-Control-Allow-Credentials': "'true'"
                                                                         }
                                                                     ),
-                                                                    # aws_apigateway.IntegrationResponse(
-                                                                    #     selection_pattern="(\n|.)+",
-                                                                    #     # We will set the response status code to 500
-                                                                    #     status_code="500",
-                                                                    #     response_templates={
-                                                                    #         'application/json': json.dumps(
-                                                                    #             {
-                                                                    #                 "state": "Fail",
-                                                                    #                 "message": "Error, please contact the admin.",
-                                                                    #             }
-                                                                    #         )
-                                                                    #     },
-                                                                    #     response_parameters={
-                                                                    #         # We can map response parameters
-                                                                    #         'method.response.header.Content-Type': "'application/json'",
-                                                                    #         'method.response.header.Access-Control-Allow-Origin': "'*'",
-                                                                    #         'method.response.header.Access-Control-Allow-Credentials': "'true'"
-                                                                    #     }
-                                                                    # )
                                                                 ]
                                                             )
                                                             )
@@ -407,20 +388,6 @@ class ApplicationmetricsStack(core.Stack):
                                                                             'method.response.header.Access-Control-Allow-Credentials': "'true'"
                                                                         }
                                                                     ),
-                                                                    # aws_apigateway.IntegrationResponse(
-                                                                    #     selection_pattern=".*UnknownException.*",
-                                                                    #     # We will set the response status code to 500
-                                                                    #     status_code="500",
-                                                                    #     response_templates={
-                                                                    #         'application/json': """ {"state": "Fail","message": "$util.parseJson($input.path('$.errorMessage')).message"} """
-                                                                    #     },
-                                                                    #     response_parameters={
-                                                                    #         # We can map response parameters
-                                                                    #         'method.response.header.Content-Type': "'application/json'",
-                                                                    #         'method.response.header.Access-Control-Allow-Origin': "'*'",
-                                                                    #         'method.response.header.Access-Control-Allow-Credentials': "'true'"
-                                                                    #     }
-                                                                    # ),
                                                                     aws_apigateway.IntegrationResponse(
                                                                         selection_pattern="(\n|.)+",
                                                                         # We will set the response status code to 500
@@ -769,10 +736,6 @@ class ApplicationmetricsStack(core.Stack):
         # [ CREATE ] CloudWatch: Alarm:
 
         alarm_lambda_log_error = aws_cloudwatch.Alarm(self, 'LambdaLogError',
-                                                      # metric=aws_cloudwatch.Metric(
-                                                      #     namespace='Lambdas',
-                                                      #     metric_name='LambdaErrors',
-                                                      # ),
                                                       metric=metric_lambda_error_log,
                                                       alarm_description='Looks for logs reported as errors and reports if any is found.',
                                                       threshold=0,
@@ -784,10 +747,6 @@ class ApplicationmetricsStack(core.Stack):
                                                       )
 
         alarm_lambda_log_memory = aws_cloudwatch.Alarm(self, 'LambdaLogMemory',
-                                                       # metric=aws_cloudwatch.Metric(
-                                                       #     namespace='Lambdas',
-                                                       #     metric_name='LambdaMemory',
-                                                       # ),
                                                        metric=metric_lambda_memory,
                                                        alarm_description='Reads memory usage in MB reported in logs and reports if too high.',
                                                        threshold=110,
@@ -824,10 +783,6 @@ class ApplicationmetricsStack(core.Stack):
                                                   )
 
         alarm_api_gateway_error_4xx = aws_cloudwatch.Alarm(self, 'ApiGateway4XXError',
-                                                           # metric=aws_cloudwatch.Metric(
-                                                           #     namespace='AWS/ApiGateway',
-                                                           #     metric_name='4XXError',
-                                                           # ),
                                                            metric=api_gateway_metric_error_4xx,
                                                            threshold=0,
                                                            period=core.Duration.seconds(60),
@@ -838,10 +793,6 @@ class ApplicationmetricsStack(core.Stack):
                                                            )
 
         alarm_api_gateway_error_5xx = aws_cloudwatch.Alarm(self, 'ApiGateway5XXError',
-                                                           # metric=aws_cloudwatch.Metric(
-                                                           #     namespace='AWS/ApiGateway',
-                                                           #     metric_name='5XXError',
-                                                           # ),
                                                            metric=api_gateway_metric_error_5xx,
                                                            threshold=0,
                                                            period=core.Duration.seconds(60),
@@ -915,21 +866,6 @@ class ApplicationmetricsStack(core.Stack):
         )
 
         dashboard_lambda.add_widgets(
-            # aws_cloudwatch.GraphWidget(
-            #     title="Amount",
-            #     width=6,
-            #     left=[
-            #         function_post.metric_invocations().with_(
-            #             color="#0052cc"
-            #         ),
-            #         function_post.metric_errors().with_(
-            #             color="#ff3333"
-            #         ),
-            #         function_post.metric_throttles().with_(
-            #             color="#ffff1a"
-            #         ),
-            #     ],
-            # ),
             aws_cloudwatch.GraphWidget(
                 title="Error",
                 width=6,
@@ -1045,7 +981,5 @@ class ApplicationmetricsStack(core.Stack):
         alarm_lambda_log_memory.add_alarm_action(action)
 
         alarm_lambda_duration.add_alarm_action(action)
-
-        # alarm_lambda_error.add_alarm_action(action)
 
         alarm_api_gateway_error_5xx.add_alarm_action(action)
