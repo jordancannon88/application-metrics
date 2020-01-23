@@ -18,10 +18,17 @@ with SNS to send alerts by email. Dashboards for monitoring details.
 | SNS | Alerting for issues |
 | X-Ray | Health monitoring |
 
-# Usage(Python)
+# Usage
 
-You should explore the contents of this project. It demonstrates a CDK app with an instance of a stack (`applicationmetrics_stack`)
-which contains an Amazon SQS queue that is subscribed to an Amazon SNS topic.
+### CFN
+
+The template comes included with all assets. It's ready to deploy.
+
+```
+cloud_formation_template.yaml
+```
+
+### CDK
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
@@ -64,11 +71,9 @@ $ vim applicationmetrics/applicationmetrics_stack.py
 
 At this point you can now synthesize the CloudFormation template for this code.
 
-
 ```
 $ cdk synth
 ```
-
 
 You can now begin exploring the source code, contained in the hello directory.
 There is also a very trivial test included that can be run like this:
@@ -93,5 +98,10 @@ command.
  * `cdk deploy`      deploy this stack to your default AWS account/region
  * `cdk diff`        compare deployed stack with current state
  * `cdk docs`        open CDK documentation
+ 
+## Useful links
+
+* [Getting Started](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html)
+* [CDK Workshop](https://cdkworkshop.com/)
 
 Enjoy!
