@@ -15,8 +15,8 @@ import json
 
 # Emails for receiving alerts.
 notification_emails = [
-    'XXX@gmail.com',
-    'XXX@yahoo.com'
+    'xxx@gmail.com',
+    'xxx@yahoo.com',
 ]
 
 
@@ -25,10 +25,7 @@ class ApplicationmetricsStack(core.Stack):
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # TODO:: Remove all unnecessary comments when finished.
         # TODO:: Add tags for resources.
-        # TODO:: Insert metadata of client "referrer" for request integration.
-        # TODO:: Add CloudWatch logs to s3 to glacier policy
 
         # [ DynamoDB ]
         #
@@ -59,7 +56,8 @@ class ApplicationmetricsStack(core.Stack):
                                             runtime=aws_lambda.Runtime.PYTHON_3_6,
                                             handler='function_post.handler',
                                             code=aws_lambda.Code.asset('./lambdas/applications'),
-                                            tracing=aws_lambda.Tracing.ACTIVE
+                                            tracing=aws_lambda.Tracing.ACTIVE,
+                                            log_retention=aws_logs.RetentionDays.ONE_YEAR
                                             )
 
         # [ DynamoDB ] Permission:
@@ -84,15 +82,15 @@ class ApplicationmetricsStack(core.Stack):
 
         # Creates new Lambda Log Group.
 
-        # function_post_log_group = aws_logs.LogGroup(self, 'LogGroup',
-        #                                             log_group_name='/aws/lambda/' + function_post.function_name
-        #                                             )
+        function_post_log_group = aws_logs.LogGroup(self, 'LogGroup',
+                                                    log_group_name='/aws/lambda/' + function_post.function_name
+                                                    )
 
         # Finds existing Lambda Log Group.
 
-        function_post_log_group = aws_logs.LogGroup.from_log_group_name(self, 'LogGroup',
-                                                                        log_group_name='/aws/lambda/' + function_post.function_name
-                                                                        )
+        # function_post_log_group = aws_logs.LogGroup.from_log_group_name(self, 'LogGroup',
+        #                                                                 log_group_name='/aws/lambda/' + function_post.function_name
+        #                                                                 )
 
         # [ Log ] MetricFilter:
         #
