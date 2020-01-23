@@ -18,6 +18,11 @@ with SNS to send alerts by email. Dashboards for monitoring details.
 | SNS | Alerting for issues |
 | X-Ray | Health monitoring |
 
+### Endpoints
+
+ * `POST` https://{url}/accounts
+ * `PUT` https://{url}/accounts
+
 # Usage
 
 ### CFN
